@@ -2,15 +2,15 @@
  * @author Stefan Dimitrov (stefan.dimitrov@clouway.com).
  */
 
-angular.module('common.pushapi', [])
+angular.module('clouway-push', [])
 
-  .provider('channelApi', function () {
+  .provider('pushApi', function () {
 
     this.connectionMethods = {
-      connect: function () {},
-      bind: function () {},
-      unbind: function () {},
-      keepAlive: function () {}
+      connect: angular.noop,
+      bind: angular.noop,
+      unbind: angular.noop,
+      keepAlive: angular.noop
     };
 
     this.timeIntervals = {
@@ -19,9 +19,9 @@ angular.module('common.pushapi', [])
 
     /**
      * Set a method to call for opening of connection.
+     * The method must return a promise.
      *
      * @param {function} method method that will be called for opening of connection.
-     * The method must return a promise.
      * @returns {*}
      */
     this.openConnectionMethod = function (method) {
@@ -29,21 +29,45 @@ angular.module('common.pushapi', [])
       return this;
     };
 
+    /**
+     * Set a method to call when binding event handler.
+     *
+     * @param {function} method method that will be called.
+     * @returns {*}
+     */
     this.bindMethod = function (method) {
       this.connectionMethods.bind = method;
       return this;
     };
 
+    /**
+     * Set a method to call when unbinding event handler.
+     *
+     * @param {function} method method that will be called.
+     * @returns {*}
+     */
     this.unbindMethod = function (method) {
       this.connectionMethods.unbind = method;
       return this;
     };
 
+    /**
+     * Set a method to call for sending a keepAlive.
+     *
+     * @param {function} method method that will be called.
+     * @returns {*}
+     */
     this.keepAliveMethod = function (method) {
       this.connectionMethods.keepAlive = method;
       return this;
     };
 
+    /**
+     * Set a time interval for sending a keepAlive.
+     *
+     * @param {number} seconds time in seconds between each keepAlive.
+     * @returns {*}
+     */
     this.keepAliveTimeInterval = function (seconds) {
       this.timeIntervals.keepAlive = seconds;
       return this;
@@ -80,7 +104,6 @@ angular.module('common.pushapi', [])
         var socket = channel.open();
 
         socket.onmessage = function (message) {
-          console.log('push message:', message);
           var eventData = angular.fromJson(message.data);
           var handlers = boundEvents[eventData.event];
 
@@ -90,7 +113,6 @@ angular.module('common.pushapi', [])
         };
 
         socket.onerror = function (errorMessage) {
-          console.log('error message:', errorMessage);
           connect(subscriber);
         };
       };
@@ -104,7 +126,6 @@ angular.module('common.pushapi', [])
       };
 
       var keepAlive = function () {
-        console.log('keeping alive');
         connectionMethods.keepAlive(connectedSubscriber);
       };
 

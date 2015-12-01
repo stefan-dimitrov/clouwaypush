@@ -2,20 +2,22 @@
  * @author Stefan Dimitrov (stefan.dimitrov@clouway.com).
  */
 
-describe('ChannelApi should', function () {
+describe('PushApi', function () {
 
-  var channelApi, socket, rootScope, bindMethod, unbindMethod, keepAliveMethod, $interval;
+  beforeEach(module('clouway-push'));
+
+  var pushApi, socket, rootScope, bindMethod, unbindMethod, keepAliveMethod, $interval;
   var keepAliveInterval = 5; //in seconds
   var promise = {connect: {}};
   var subscriber = 'test-subscriber';
   var channelToken = 'fake-channel-token';
   beforeEach(function () {
-    module('common.pushapi', function (channelApiProvider) {
+    module(function (pushApiProvider) {
       bindMethod = jasmine.createSpy('bindMethod');
       unbindMethod = jasmine.createSpy('unbindMethod');
       keepAliveMethod = jasmine.createSpy('keepAliveMethod');
 
-      channelApiProvider.openConnectionMethod(function (subscriber) {
+      pushApiProvider.openConnectionMethod(function (subscriber) {
           return promise.connect;
         })
         .bindMethod(bindMethod)
@@ -23,15 +25,15 @@ describe('ChannelApi should', function () {
         .keepAliveMethod(keepAliveMethod).keepAliveTimeInterval(keepAliveInterval);
     });
 
-    inject(function ($rootScope, $q, _$interval_, _channelApi_) {
+    inject(function ($rootScope, $q, _$interval_, _pushApi_) {
       rootScope = $rootScope;
       $interval = _$interval_;
-      channelApi = _channelApi_;
+      pushApi = _pushApi_;
       var connectDeferred = $q.defer();
 
       promise.connect = connectDeferred.promise;
 
-      channelApi.openConnection(subscriber);
+      pushApi.openConnection(subscriber);
       connectDeferred.resolve(channelToken);
       rootScope.$digest();
       socket = goog.appengine.Socket._get(channelToken);
@@ -42,7 +44,7 @@ describe('ChannelApi should', function () {
     var eventName = 'fake-event';
 
     var callback = jasmine.createSpy('callback');
-    channelApi.bind(eventName, callback);
+    pushApi.bind(eventName, callback);
 
     expect(bindMethod).toHaveBeenCalledWith(subscriber, eventName);
 
@@ -57,9 +59,9 @@ describe('ChannelApi should', function () {
     var callback1 = jasmine.createSpy('callback1');
     var callback2 = jasmine.createSpy('callback2');
     var callback3 = jasmine.createSpy('callback3');
-    channelApi.bind(eventName, callback1);
-    channelApi.bind(eventName, callback2);
-    channelApi.bind(eventName, callback3);
+    pushApi.bind(eventName, callback1);
+    pushApi.bind(eventName, callback2);
+    pushApi.bind(eventName, callback3);
 
     expect(bindMethod.calls.count()).toEqual(3);
     expect(bindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
@@ -80,12 +82,12 @@ describe('ChannelApi should', function () {
     var callback1 = jasmine.createSpy('callback1');
     var callback2 = jasmine.createSpy('callback2');
     var callback3 = jasmine.createSpy('callback3');
-    var boundCallback1 = channelApi.bind(eventName, callback1);
-    var boundCallback2 = channelApi.bind(eventName, callback2);
-    var boundCallback3 = channelApi.bind(eventName, callback3);
+    var boundCallback1 = pushApi.bind(eventName, callback1);
+    var boundCallback2 = pushApi.bind(eventName, callback2);
+    var boundCallback3 = pushApi.bind(eventName, callback3);
 
-    channelApi.unbind(eventName, boundCallback1);
-    channelApi.unbind(eventName, boundCallback3);
+    pushApi.unbind(eventName, boundCallback1);
+    pushApi.unbind(eventName, boundCallback3);
 
     expect(unbindMethod.calls.count()).toEqual(2);
     expect(unbindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
@@ -103,9 +105,9 @@ describe('ChannelApi should', function () {
     var eventName = 'fake-event';
 
     var callback = jasmine.createSpy('callback');
-    var boundCallback = channelApi.bind(eventName, callback);
+    var boundCallback = pushApi.bind(eventName, callback);
 
-    channelApi.unbind('non-existing-event', boundCallback);
+    pushApi.unbind('non-existing-event', boundCallback);
     expect(unbindMethod).not.toHaveBeenCalled();
 
     var messageData = {event: eventName};
@@ -119,10 +121,10 @@ describe('ChannelApi should', function () {
 
     var callback1 = jasmine.createSpy('callback1');
     var callback2 = jasmine.createSpy('callback2');
-    var boundCallback1 = channelApi.bind(eventName, callback1);
-    var boundCallback2 = channelApi.bind('other-event', callback2);
+    var boundCallback1 = pushApi.bind(eventName, callback1);
+    var boundCallback2 = pushApi.bind('other-event', callback2);
 
-    channelApi.unbind(eventName, boundCallback2);
+    pushApi.unbind(eventName, boundCallback2);
 
     var messageData = {event: eventName};
     socket.onmessage({data: angular.toJson(messageData)});
@@ -136,11 +138,11 @@ describe('ChannelApi should', function () {
     var callback1 = jasmine.createSpy('callback1');
     var callback2 = jasmine.createSpy('callback2');
     var callback3 = jasmine.createSpy('callback3');
-    channelApi.bind(eventName, callback1);
-    channelApi.bind(eventName, callback2);
-    channelApi.bind(eventName, callback3);
+    pushApi.bind(eventName, callback1);
+    pushApi.bind(eventName, callback2);
+    pushApi.bind(eventName, callback3);
 
-    channelApi.unbind(eventName);
+    pushApi.unbind(eventName);
 
     var messageData = {event: eventName};
     socket.onmessage({data: angular.toJson(messageData)});
