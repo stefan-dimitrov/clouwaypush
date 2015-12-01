@@ -31,6 +31,7 @@
     "karma-jasmine": "^0.3.6",
     "karma-phantomjs-launcher": "^0.1.4",
     "jasmine-core": "~2.3.4",
-    "grunt-cli": "~0.1.13"
+    "grunt-cli": "~0.1.13",
+    "grunt-injector": "~0.6.1"
   }
 }

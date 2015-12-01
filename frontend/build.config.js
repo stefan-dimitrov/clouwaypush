@@ -44,13 +44,6 @@ module.exports = {
    *
    * The `vendor_files.js` property holds files to be automatically
    * concatenated and minified with our project source files.
-   *
-   * The `vendor_files.css` property holds any CSS files to be automatically
-   * included in our app.
-   *
-   * The `vendor_files.assets` property holds any assets to be copied along
-   * with our app's assets. This structure is flattened, so it is not
-   * recommended that you use wildcards.
    */
   vendor_files: {
     js: [
