@@ -6,6 +6,8 @@ angular.module('clouway-push', [])
 
   .provider('pushApi', function () {
 
+    this.subscriberLength = 15;
+
     this.connectionMethods = {
       connect: angular.noop,
       bind: angular.noop,
@@ -86,6 +88,7 @@ angular.module('clouway-push', [])
     };
 
     this.$get = function ($rootScope, $interval, $timeout) {
+      var subscriberLength = this.subscriberLength;
       var connectionMethods = this.connectionMethods;
       var timeIntervals = this.timeIntervals;
       var boundEvents = {};
@@ -93,11 +96,34 @@ angular.module('clouway-push', [])
       var keepAliveInterval;
 
       /**
+       * Generate a random alpha-numeric subscriber.
+       *
+       * @returns {string} the generated subscriber.
+       */
+      var generateSubscriber = function (length) {
+        var symbols = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456';
+        var generated = [];
+        var i = 0;
+
+        while (i < length) {
+          i++;
+          var character = Math.floor(Math.random() * symbols.length);
+          generated.push(symbols.charAt(character));
+        }
+
+        return generated.join('');
+      };
+
+      /**
        * Open connection for the specified subscriber.
        *
        * @param {String} subscriber subscriber to open connection for.
        */
       var connect = function (subscriber) {
+        if (angular.isUndefined(subscriber)) {
+          subscriber = generateSubscriber(subscriberLength);
+        }
+
         connectionMethods.connect(subscriber).then(function (token) {
           connectedSubscriber = subscriber;
           openChannel(token, subscriber);
@@ -107,6 +133,8 @@ angular.module('clouway-push', [])
           // Retry connection after time interval.
           $timeout(connect, timeIntervals.channelReconnect * 1000, true, subscriber);
         });
+
+        return subscriber;
       };
 
       /**
