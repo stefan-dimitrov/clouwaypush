@@ -191,4 +191,16 @@ describe('PushApi', function () {
     expect(connectMethod).toHaveBeenCalledWith(generatedSubscriber);
   });
 
+  it('generate a subscriber if it is empty string', function () {
+    connectMethod.calls.reset();
+
+    spyOn(Math, 'random').and.returnValue(0.07);
+    connectMethod.and.returnValue({then: angular.noop});
+
+    var generatedSubscriber = pushApi.openConnection('');
+
+    expect(generatedSubscriber).toEqual('eeeeeeeeeeeeeee');
+    expect(connectMethod).toHaveBeenCalledWith(generatedSubscriber);
+  });
+
 });

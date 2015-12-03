@@ -120,7 +120,7 @@ angular.module('clouway-push', [])
        * @param {String} subscriber subscriber to open connection for.
        */
       var connect = function (subscriber) {
-        if (angular.isUndefined(subscriber)) {
+        if (!subscriber) {
           subscriber = generateSubscriber(subscriberLength);
         }
 
