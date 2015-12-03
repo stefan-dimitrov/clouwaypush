@@ -14,15 +14,16 @@ angular.module('clouway-push', [])
     };
 
     this.timeIntervals = {
-      keepAlive: 60
+      keepAlive: 60,
+      channelReconnect: 5
     };
 
     /**
      * Set a method to call for opening of connection.
      * The method must return a promise.
      *
-     * @param {function} method method that will be called for opening of connection.
-     * @returns {*}
+     * @param {function(subscriber)} method method that will be called for opening of connection.
+     * @returns {*} the provider instance for chaining purposes.
      */
     this.openConnectionMethod = function (method) {
       this.connectionMethods.connect = method;
@@ -32,8 +33,8 @@ angular.module('clouway-push', [])
     /**
      * Set a method to call when binding event handler.
      *
-     * @param {function} method method that will be called.
-     * @returns {*}
+     * @param {function(subscriber, eventName)} method method that will be called.
+     * @returns {*} the provider instance for chaining purposes.
      */
     this.bindMethod = function (method) {
       this.connectionMethods.bind = method;
@@ -43,8 +44,8 @@ angular.module('clouway-push', [])
     /**
      * Set a method to call when unbinding event handler.
      *
-     * @param {function} method method that will be called.
-     * @returns {*}
+     * @param {function(subscriber, eventName)} method method that will be called.
+     * @returns {*} the provider instance for chaining purposes.
      */
     this.unbindMethod = function (method) {
       this.connectionMethods.unbind = method;
@@ -54,8 +55,8 @@ angular.module('clouway-push', [])
     /**
      * Set a method to call for sending a keepAlive.
      *
-     * @param {function} method method that will be called.
-     * @returns {*}
+     * @param {function(subscriber)} method method that will be called.
+     * @returns {*} the provider instance for chaining purposes.
      */
     this.keepAliveMethod = function (method) {
       this.connectionMethods.keepAlive = method;
@@ -66,19 +67,30 @@ angular.module('clouway-push', [])
      * Set a time interval for sending a keepAlive.
      *
      * @param {number} seconds time in seconds between each keepAlive.
-     * @returns {*}
+     * @returns {*} the provider instance for chaining purposes.
      */
     this.keepAliveTimeInterval = function (seconds) {
       this.timeIntervals.keepAlive = seconds;
       return this;
     };
 
-    this.$get = function ($rootScope, $interval) {
+    /**
+     * Set a time interval for attempting a reconnect.
+     *
+     * @param {number} seconds time in seconds between each reconnect attempt.
+     * @returns {*} the provider instance for chaining purposes.
+     */
+    this.reconnectTimeInterval = function (seconds) {
+      this.timeIntervals.channelReconnect = seconds;
+      return this;
+    };
+
+    this.$get = function ($rootScope, $interval, $timeout) {
       var connectionMethods = this.connectionMethods;
       var timeIntervals = this.timeIntervals;
       var boundEvents = {};
       var connectedSubscriber;
-      var interval;
+      var keepAliveInterval;
 
       /**
        * Open connection for the specified subscriber.
@@ -89,7 +101,11 @@ angular.module('clouway-push', [])
         connectionMethods.connect(subscriber).then(function (token) {
           connectedSubscriber = subscriber;
           openChannel(token, subscriber);
-          interval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
+          keepAliveInterval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
+
+        }, function () {
+          // Retry connection after time interval.
+          $timeout(connect, timeIntervals.channelReconnect * 1000, true, subscriber);
         });
       };
 
@@ -182,6 +198,54 @@ angular.module('clouway-push', [])
         }
       };
     };
+  })
+
+  .config(function (pushApiProvider) {
+    var backendServiceUrl = '/pushService';
+    var keepAliveInterval = 30; //in seconds
+    var reconnectInterval = 10; //in seconds
+
+    var injector = angular.injector(['ng']);
+    var $http = injector.get('$http');
+    var $q = injector.get('$q');
+
+    /**
+     * Helper function to return a promise with the $http response.data field.
+     *
+     * @param {Promise} httpPromise a promise object from the $http service
+     * @returns {Promise} a promise which resolves(or rejects) to the response.data object from the $http promise.
+     */
+    function dataPromise(httpPromise) {
+      var deferred = $q.defer();
+
+      httpPromise.then(function (response) {
+        deferred.resolve(response.data);
+      }, function (response) {
+        deferred.reject(response.data);
+      });
+
+      return deferred.promise;
+    }
+
+    pushApiProvider.keepAliveTimeInterval(keepAliveInterval)
+      .reconnectTimeInterval(reconnectInterval)
+      .openConnectionMethod(function (subscriber) {
+        var params = {subscriber: subscriber};
+        return dataPromise($http.get(backendServiceUrl, {params: params}));
+    })
+      .bindMethod(function (subscriber, eventName) {
+        var params = {subscriber: subscriber, eventName: eventName};
+        return dataPromise($http.put(backendServiceUrl, '', {params: params}));
+      })
+      .unbindMethod(function (subscriber, eventName) {
+        var params = {subscriber: subscriber, eventName: eventName};
+        return dataPromise($http['delete'](backendServiceUrl, {params: params}));
+      })
+      .keepAliveMethod(function (subscriber) {
+        var params = {subscriber: subscriber};
+        return dataPromise($http.post(backendServiceUrl, '', {params: params}));
+      })
+    ;
   })
 
 ;

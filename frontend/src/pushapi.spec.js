@@ -6,32 +6,34 @@ describe('PushApi', function () {
 
   beforeEach(module('clouway-push'));
 
-  var pushApi, socket, rootScope, bindMethod, unbindMethod, keepAliveMethod, $interval;
+  var pushApi, socket, rootScope, connectMethod, bindMethod, unbindMethod, keepAliveMethod, $interval, $timeout;
   var keepAliveInterval = 5; //in seconds
-  var promise = {connect: {}};
+  var reconnectInterval = 20; //in seconds
   var subscriber = 'test-subscriber';
   var channelToken = 'fake-channel-token';
   beforeEach(function () {
     module(function (pushApiProvider) {
+      connectMethod = jasmine.createSpy('connectMethod');
       bindMethod = jasmine.createSpy('bindMethod');
       unbindMethod = jasmine.createSpy('unbindMethod');
       keepAliveMethod = jasmine.createSpy('keepAliveMethod');
 
-      pushApiProvider.openConnectionMethod(function (subscriber) {
-          return promise.connect;
-        })
+      pushApiProvider.openConnectionMethod(connectMethod)
         .bindMethod(bindMethod)
         .unbindMethod(unbindMethod)
-        .keepAliveMethod(keepAliveMethod).keepAliveTimeInterval(keepAliveInterval);
+        .keepAliveMethod(keepAliveMethod).keepAliveTimeInterval(keepAliveInterval)
+        .reconnectTimeInterval(reconnectInterval);
     });
 
-    inject(function ($rootScope, $q, _$interval_, _pushApi_) {
+    inject(function ($rootScope, $q, _$interval_, _$timeout_, _pushApi_) {
       rootScope = $rootScope;
       $interval = _$interval_;
+      $timeout = _$timeout_;
       pushApi = _pushApi_;
       var connectDeferred = $q.defer();
 
-      promise.connect = connectDeferred.promise;
+      //promise.connect = connectDeferred.promise;
+      connectMethod.and.returnValue(connectDeferred.promise);
 
       pushApi.openConnection(subscriber);
       connectDeferred.resolve(channelToken);
@@ -157,5 +159,24 @@ describe('PushApi', function () {
     $interval.flush(keepAliveInterval * 1000);
     expect(keepAliveMethod).toHaveBeenCalledWith(subscriber);
   });
+
+  it('attempt a reconnect after time interval', inject(function ($q) {
+    connectMethod.calls.reset();
+
+    var deferred = $q.defer();
+    connectMethod.and.returnValue(deferred.promise);
+    var dummySubscriber = 'dummy_subscriber';
+    pushApi.openConnection(dummySubscriber);
+
+    expect(connectMethod.calls.count()).toBe(1);
+
+    deferred.reject();
+    rootScope.$digest();
+
+    expect(connectMethod.calls.count()).toBe(1);
+    $timeout.flush(reconnectInterval * 1000);
+    expect(connectMethod.calls.count()).toBe(2);
+    expect(connectMethod.calls.mostRecent().args).toEqual([dummySubscriber]);
+  }));
 
 });
