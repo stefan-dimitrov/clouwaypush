@@ -92,7 +92,7 @@ angular.module('clouway-push', [])
       var connectionMethods = this.connectionMethods;
       var timeIntervals = this.timeIntervals;
       var boundEvents = {};
-      var connectedSubscriber;
+      var channelSubscriber;
       var keepAliveInterval;
 
       /**
@@ -123,9 +123,9 @@ angular.module('clouway-push', [])
         if (!subscriber) {
           subscriber = generateSubscriber(subscriberLength);
         }
+        channelSubscriber = subscriber;
 
         connectionMethods.connect(subscriber).then(function (token) {
-          connectedSubscriber = subscriber;
           openChannel(token, subscriber);
           keepAliveInterval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
 
@@ -135,6 +135,15 @@ angular.module('clouway-push', [])
         });
 
         return subscriber;
+      };
+
+      var onMessage = function (message) {
+        var eventData = angular.fromJson(message.data);
+        var handlers = boundEvents[eventData.event];
+
+        angular.forEach(handlers, function (handler) {
+          handler(eventData);
+        });
       };
 
       /**
@@ -147,14 +156,7 @@ angular.module('clouway-push', [])
         var channel = new goog.appengine.Channel(channelToken);
         var socket = channel.open();
 
-        socket.onmessage = function (message) {
-          var eventData = angular.fromJson(message.data);
-          var handlers = boundEvents[eventData.event];
-
-          angular.forEach(handlers, function (handler) {
-            handler(eventData);
-          });
-        };
+        socket.onmessage = onMessage;
 
         socket.onerror = function (errorMessage) {
           connect(subscriber);
@@ -162,19 +164,24 @@ angular.module('clouway-push', [])
       };
 
       var subscribeForEvent = function (eventName) {
-        connectionMethods.bind(connectedSubscriber, eventName);
+        connectionMethods.bind(channelSubscriber, eventName);
       };
 
       var unsubscribeFromEvent = function (eventName) {
-        connectionMethods.unbind(connectedSubscriber, eventName);
+        connectionMethods.unbind(channelSubscriber, eventName);
       };
 
       var keepAlive = function () {
-        connectionMethods.keepAlive(connectedSubscriber);
+        connectionMethods.keepAlive(channelSubscriber);
       };
 
       return {
         openConnection: connect,
+
+        /**
+         * Manually call the push message handler
+         */
+        handleMessage: onMessage, // needed only for side-by-side use with GWT.
 
         /**
          * Bind handler to push event.
