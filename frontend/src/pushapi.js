@@ -87,13 +87,15 @@ angular.module('clouway-push', [])
       return this;
     };
 
-    this.$get = function ($rootScope, $interval, $timeout) {
+    this.$get = function ($rootScope, $interval, $timeout, $window) {
       var subscriberLength = this.subscriberLength;
       var connectionMethods = this.connectionMethods;
       var timeIntervals = this.timeIntervals;
       var boundEvents = {};
       var channelSubscriber;
       var keepAliveInterval;
+
+      var service = {};
 
       /**
        * Generate a random alpha-numeric subscriber.
@@ -115,30 +117,19 @@ angular.module('clouway-push', [])
       };
 
       /**
-       * Open connection for the specified subscriber.
+       * Handle push event message.
        *
-       * @param {String} subscriber subscriber to open connection for.
+       * @param {Object} message
        */
-      var connect = function (subscriber) {
-        if (!subscriber) {
-          subscriber = generateSubscriber(subscriberLength);
-        }
-        channelSubscriber = subscriber;
-
-        connectionMethods.connect(subscriber).then(function (token) {
-          openChannel(token, subscriber);
-          keepAliveInterval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
-
-        }, function () {
-          // Retry connection after time interval.
-          $timeout(connect, timeIntervals.channelReconnect * 1000, true, subscriber);
-        });
-
-        return subscriber;
-      };
-
       var onMessage = function (message) {
-        var eventData = angular.fromJson(message.data);
+        var messageData = message.data;
+        var firstChar = messageData.trim().charAt(0);
+        if ('{' != firstChar && '[' != firstChar){
+          $window.onChannelMessageReceived(messageData);
+          return;
+        }
+
+        var eventData = angular.fromJson(messageData);
         var handlers = boundEvents[eventData.event];
 
         angular.forEach(handlers, function (handler) {
@@ -159,12 +150,13 @@ angular.module('clouway-push', [])
         socket.onmessage = onMessage;
 
         socket.onerror = function (errorMessage) {
-          connect(subscriber);
+          service.openConnection();
         };
       };
 
       var subscribeForEvent = function (eventName) {
-        connectionMethods.bind(channelSubscriber, eventName);
+        var subscriber = service.openConnection();
+        connectionMethods.bind(subscriber, eventName);
       };
 
       var unsubscribeFromEvent = function (eventName) {
@@ -175,63 +167,84 @@ angular.module('clouway-push', [])
         connectionMethods.keepAlive(channelSubscriber);
       };
 
-      return {
-        openConnection: connect,
 
-        /**
-         * Manually call the push message handler
-         */
-        handleMessage: onMessage, // needed only for side-by-side use with GWT.
-
-        /**
-         * Bind handler to push event.
-         *
-         * @param {String} eventName name of the push event to which to bind the handler
-         * @param {Function} handler handler to be called when the event occurs
-         * @returns {Function} the bound handler
-         */
-        bind: function (eventName, handler) {
-          if (angular.isUndefined(boundEvents[eventName])) {
-            boundEvents[eventName] = [];
-          }
-
-          var eventHandler = function (data) {
-            handler(data);
-            $rootScope.$apply();
-          };
-
-          subscribeForEvent(eventName);
-          boundEvents[eventName].push(eventHandler);
-
-          return eventHandler;
-        },
-
-        /**
-         * Unbind handler/handlers from push event.
-         * If no handler is specified then unbind all bound handlers from the event.
-         *
-         * @param {String} eventName name of the event from which to unbind the handler/handlers
-         * @param {Function} [handler] the handler to be unbound from the event. If not defined, unbind all handlers for the event.
-         */
-        unbind: function (eventName, handler) {
-          if (!(eventName in boundEvents)) {
-            return;
-          }
-
-          if (angular.isUndefined(handler)) {
-            delete boundEvents[eventName];
-            return;
-          }
-
-          var handlerIndex = boundEvents[eventName].indexOf(handler);
-          if (handlerIndex < 0) {
-            return;
-          }
-
-          unsubscribeFromEvent(eventName);
-          boundEvents[eventName].splice(handlerIndex, 1);
+      /**
+       * Open connection for the specified subscriber.
+       *
+       * @param {String} subscriber subscriber to open connection for.
+       */
+      service.openConnection = function (subscriber) {
+        if (channelSubscriber) {
+          return channelSubscriber;
         }
+
+        if (!subscriber) {
+          subscriber = generateSubscriber(subscriberLength);
+        }
+
+        connectionMethods.connect(subscriber).then(function (token) {
+          openChannel(token, subscriber);
+          channelSubscriber = subscriber;
+          keepAliveInterval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
+
+        }, function () {
+          // Retry connection after time interval.
+          $timeout(service.openConnection, timeIntervals.channelReconnect * 1000, true, subscriber);
+        });
+
+        return subscriber;
       };
+
+      /**
+       * Bind handler to push event.
+       *
+       * @param {String} eventName name of the push event to which to bind the handler
+       * @param {Function} handler handler to be called when the event occurs
+       * @returns {Function} the bound handler
+       */
+      service.bind = function (eventName, handler) {
+        if (angular.isUndefined(boundEvents[eventName])) {
+          boundEvents[eventName] = [];
+        }
+
+        var eventHandler = function (data) {
+          handler(data);
+          $rootScope.$apply();
+        };
+
+        subscribeForEvent(eventName);
+        boundEvents[eventName].push(eventHandler);
+
+        return eventHandler;
+      };
+
+      /**
+       * Unbind handler/handlers from push event.
+       * If no handler is specified then unbind all bound handlers from the event.
+       *
+       * @param {String} eventName name of the event from which to unbind the handler/handlers
+       * @param {Function} [handler] the handler to be unbound from the event. If not defined, unbind all handlers for the event.
+       */
+      service.unbind = function (eventName, handler) {
+        if (!(eventName in boundEvents)) {
+          return;
+        }
+
+        if (angular.isUndefined(handler)) {
+          delete boundEvents[eventName];
+          return;
+        }
+
+        var handlerIndex = boundEvents[eventName].indexOf(handler);
+        if (handlerIndex < 0) {
+          return;
+        }
+
+        unsubscribeFromEvent(eventName);
+        boundEvents[eventName].splice(handlerIndex, 1);
+      };
+
+      return service;
     };
   })
 

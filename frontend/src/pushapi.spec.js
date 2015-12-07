@@ -6,201 +6,253 @@ describe('PushApi', function () {
 
   beforeEach(module('clouway-push'));
 
-  var pushApi, socket, rootScope, connectMethod, bindMethod, unbindMethod, keepAliveMethod, $interval, $timeout;
-  var keepAliveInterval = 5; //in seconds
-  var reconnectInterval = 20; //in seconds
+  var pushApi, socket, rootScope, connectMethod, bindMethod, unbindMethod;
   var subscriber = 'test-subscriber';
   var channelToken = 'fake-channel-token';
-  beforeEach(function () {
-    module(function (pushApiProvider) {
-      connectMethod = jasmine.createSpy('connectMethod');
-      bindMethod = jasmine.createSpy('bindMethod');
-      unbindMethod = jasmine.createSpy('unbindMethod');
-      keepAliveMethod = jasmine.createSpy('keepAliveMethod');
+  var $window = {};
 
-      pushApiProvider.openConnectionMethod(connectMethod)
-        .bindMethod(bindMethod)
-        .unbindMethod(unbindMethod)
-        .keepAliveMethod(keepAliveMethod).keepAliveTimeInterval(keepAliveInterval)
-        .reconnectTimeInterval(reconnectInterval);
+  describe('service should', function () {
+
+    beforeEach(function () {
+      module(function ($provide, pushApiProvider) {
+        connectMethod = jasmine.createSpy('connectMethod');
+        bindMethod = jasmine.createSpy('bindMethod');
+        unbindMethod = jasmine.createSpy('unbindMethod');
+
+        pushApiProvider.openConnectionMethod(connectMethod)
+          .bindMethod(bindMethod)
+          .unbindMethod(unbindMethod);
+
+        $provide.value('$window', $window);
+      });
+
+      inject(function ($rootScope, $q, _pushApi_) {
+        rootScope = $rootScope;
+        pushApi = _pushApi_;
+        var connectDeferred = $q.defer();
+
+        connectMethod.and.returnValue(connectDeferred.promise);
+
+        pushApi.openConnection(subscriber);
+        connectDeferred.resolve(channelToken);
+        rootScope.$digest();
+        socket = goog.appengine.Socket._get(channelToken);
+      });
     });
 
-    inject(function ($rootScope, $q, _$interval_, _$timeout_, _pushApi_) {
-      rootScope = $rootScope;
-      $interval = _$interval_;
-      $timeout = _$timeout_;
-      pushApi = _pushApi_;
-      var connectDeferred = $q.defer();
+    it('call bound event handler', function () {
+      spyOn(pushApi, 'openConnection').and.returnValue('connection subscriber');
+      var eventName = 'fake-event';
 
-      //promise.connect = connectDeferred.promise;
-      connectMethod.and.returnValue(connectDeferred.promise);
+      var callback = jasmine.createSpy('callback');
+      pushApi.bind(eventName, callback);
+      expect(pushApi.openConnection).toHaveBeenCalled();
+      expect(bindMethod).toHaveBeenCalledWith('connection subscriber', eventName);
 
+      socket.onmessage({data: angular.toJson({event: eventName})});
+
+      expect(callback).toHaveBeenCalledWith({event: eventName});
+    });
+
+    it('call window method when message is not json', function () {
+      $window.onChannelMessageReceived = jasmine.createSpy('$window.onPushMessage');
+
+      var messageData = '//OK;dummy_message';
+      socket.onmessage({data: messageData});
+
+      expect($window.onChannelMessageReceived).toHaveBeenCalledWith(messageData);
+    });
+
+    it('call many bound event handlers', function () {
+      var eventName = 'fake-event';
+
+      var callback1 = jasmine.createSpy('callback1');
+      var callback2 = jasmine.createSpy('callback2');
+      var callback3 = jasmine.createSpy('callback3');
+      pushApi.bind(eventName, callback1);
+      pushApi.bind(eventName, callback2);
+      pushApi.bind(eventName, callback3);
+
+      expect(bindMethod.calls.count()).toEqual(3);
+      expect(bindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
+      expect(bindMethod.calls.argsFor(1)).toEqual([subscriber, eventName]);
+      expect(bindMethod.calls.argsFor(2)).toEqual([subscriber, eventName]);
+
+      var messageData = {event: eventName};
+      socket.onmessage({data: angular.toJson(messageData)});
+
+      expect(callback1).toHaveBeenCalledWith(messageData);
+      expect(callback2).toHaveBeenCalledWith(messageData);
+      expect(callback3).toHaveBeenCalledWith(messageData);
+    });
+
+    it('not call non-bound event handlers', function () {
+      var eventName = 'fake-event';
+
+      var callback1 = jasmine.createSpy('callback1');
+      var callback2 = jasmine.createSpy('callback2');
+      var callback3 = jasmine.createSpy('callback3');
+      var boundCallback1 = pushApi.bind(eventName, callback1);
+      var boundCallback2 = pushApi.bind(eventName, callback2);
+      var boundCallback3 = pushApi.bind(eventName, callback3);
+
+      pushApi.unbind(eventName, boundCallback1);
+      pushApi.unbind(eventName, boundCallback3);
+
+      expect(unbindMethod.calls.count()).toEqual(2);
+      expect(unbindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
+      expect(unbindMethod.calls.argsFor(1)).toEqual([subscriber, eventName]);
+
+      var messageData = {event: eventName};
+      socket.onmessage({data: angular.toJson(messageData)});
+
+      expect(callback1).not.toHaveBeenCalled();
+      expect(callback2).toHaveBeenCalledWith(messageData);
+      expect(callback3).not.toHaveBeenCalled();
+    });
+
+    it('not unbind handler for non-existing event', function () {
+      var eventName = 'fake-event';
+
+      var callback = jasmine.createSpy('callback');
+      var boundCallback = pushApi.bind(eventName, callback);
+
+      pushApi.unbind('non-existing-event', boundCallback);
+      expect(unbindMethod).not.toHaveBeenCalled();
+
+      var messageData = {event: eventName};
+      socket.onmessage({data: angular.toJson(messageData)});
+
+      expect(callback).toHaveBeenCalled();
+    });
+
+    it('not unbind handler not for event', function () {
+      var eventName = 'fake-event';
+
+      var callback1 = jasmine.createSpy('callback1');
+      var callback2 = jasmine.createSpy('callback2');
+      var boundCallback1 = pushApi.bind(eventName, callback1);
+      var boundCallback2 = pushApi.bind('other-event', callback2);
+
+      pushApi.unbind(eventName, boundCallback2);
+
+      var messageData = {event: eventName};
+      socket.onmessage({data: angular.toJson(messageData)});
+
+      expect(callback1).toHaveBeenCalled();
+    });
+
+    it('unbind all handlers for event', function () {
+      var eventName = 'fake-event';
+
+      var callback1 = jasmine.createSpy('callback1');
+      var callback2 = jasmine.createSpy('callback2');
+      var callback3 = jasmine.createSpy('callback3');
+      pushApi.bind(eventName, callback1);
+      pushApi.bind(eventName, callback2);
+      pushApi.bind(eventName, callback3);
+
+      pushApi.unbind(eventName);
+
+      var messageData = {event: eventName};
+      socket.onmessage({data: angular.toJson(messageData)});
+
+      expect(callback1).not.toHaveBeenCalled();
+      expect(callback2).not.toHaveBeenCalled();
+      expect(callback3).not.toHaveBeenCalled();
+    });
+
+  });
+
+  describe('connection opening should', function () {
+
+    var connectDeferred, keepAliveMethod, $interval, $timeout;
+    var keepAliveInterval = 5; //in seconds
+    var reconnectInterval = 20; //in seconds
+    beforeEach(function () {
+      module(function (pushApiProvider) {
+        connectMethod = jasmine.createSpy('connectMethod');
+        keepAliveMethod = jasmine.createSpy('keepAliveMethod');
+
+        pushApiProvider.openConnectionMethod(connectMethod);
+        pushApiProvider.keepAliveMethod(keepAliveMethod);
+        pushApiProvider.keepAliveTimeInterval(keepAliveInterval);
+      });
+
+      inject(function ($rootScope, $q, _$interval_, _$timeout_, _pushApi_) {
+        rootScope = $rootScope;
+        $interval = _$interval_;
+        $timeout = _$timeout_;
+        pushApi = _pushApi_;
+        connectDeferred = $q.defer();
+
+        connectMethod.and.returnValue(connectDeferred.promise);
+      });
+    });
+
+    it('call configured connect method', function () {
       pushApi.openConnection(subscriber);
+      expect(connectMethod).toHaveBeenCalledWith(subscriber);
+    });
+
+    it('not call anything when already connected', function () {
+      pushApi.openConnection(subscriber);
+
+      expect(connectMethod.calls.count()).toBe(1);
       connectDeferred.resolve(channelToken);
       rootScope.$digest();
-      socket = goog.appengine.Socket._get(channelToken);
+
+      connectMethod.calls.reset();
+
+      pushApi.openConnection('any subscriber');
+      expect(connectMethod).not.toHaveBeenCalled();
     });
-  });
 
-  it('call bound event handler', function () {
-    var eventName = 'fake-event';
+    it('call keepAlive after time interval', function () {
+      pushApi.openConnection(subscriber);
+      connectDeferred.resolve('token');
+      rootScope.$digest();
 
-    var callback = jasmine.createSpy('callback');
-    pushApi.bind(eventName, callback);
+      expect(keepAliveMethod).not.toHaveBeenCalled();
+      $interval.flush(keepAliveInterval * 1000);
+      expect(keepAliveMethod).toHaveBeenCalledWith(subscriber);
+    });
 
-    expect(bindMethod).toHaveBeenCalledWith(subscriber, eventName);
+    it('attempt a reconnect after time interval', inject(function ($q) {
+      var dummySubscriber = 'dummy_subscriber';
+      pushApi.openConnection(dummySubscriber);
 
-    socket.onmessage({data: angular.toJson({event: eventName})});
+      expect(connectMethod.calls.count()).toBe(1);
 
-    expect(callback).toHaveBeenCalledWith({event: eventName});
-  });
+      connectDeferred.reject();
+      rootScope.$digest();
 
-  it('call many bound event handlers', function () {
-    var eventName = 'fake-event';
+      expect(connectMethod.calls.count()).toBe(1);
+      $timeout.flush(reconnectInterval * 1000);
+      expect(connectMethod.calls.count()).toBe(2);
+      expect(connectMethod.calls.mostRecent().args).toEqual([dummySubscriber]);
+    }));
 
-    var callback1 = jasmine.createSpy('callback1');
-    var callback2 = jasmine.createSpy('callback2');
-    var callback3 = jasmine.createSpy('callback3');
-    pushApi.bind(eventName, callback1);
-    pushApi.bind(eventName, callback2);
-    pushApi.bind(eventName, callback3);
+    it('generate a subscriber if it is not specified', function () {
+      spyOn(Math, 'random').and.returnValue(0.07);
+      connectMethod.and.returnValue({then: angular.noop});
 
-    expect(bindMethod.calls.count()).toEqual(3);
-    expect(bindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
-    expect(bindMethod.calls.argsFor(1)).toEqual([subscriber, eventName]);
-    expect(bindMethod.calls.argsFor(2)).toEqual([subscriber, eventName]);
+      var generatedSubscriber = pushApi.openConnection();
 
-    var messageData = {event: eventName};
-    socket.onmessage({data: angular.toJson(messageData)});
+      expect(generatedSubscriber).toEqual('eeeeeeeeeeeeeee');
+      expect(connectMethod).toHaveBeenCalledWith(generatedSubscriber);
+    });
 
-    expect(callback1).toHaveBeenCalledWith(messageData);
-    expect(callback2).toHaveBeenCalledWith(messageData);
-    expect(callback3).toHaveBeenCalledWith(messageData);
-  });
+    it('generate a subscriber if it is empty string', function () {
+      spyOn(Math, 'random').and.returnValue(0.07);
+      connectMethod.and.returnValue({then: angular.noop});
 
-  it('not call non-bound event handlers', function () {
-    var eventName = 'fake-event';
+      var generatedSubscriber = pushApi.openConnection('');
 
-    var callback1 = jasmine.createSpy('callback1');
-    var callback2 = jasmine.createSpy('callback2');
-    var callback3 = jasmine.createSpy('callback3');
-    var boundCallback1 = pushApi.bind(eventName, callback1);
-    var boundCallback2 = pushApi.bind(eventName, callback2);
-    var boundCallback3 = pushApi.bind(eventName, callback3);
+      expect(generatedSubscriber).toEqual('eeeeeeeeeeeeeee');
+      expect(connectMethod).toHaveBeenCalledWith(generatedSubscriber);
+    });
 
-    pushApi.unbind(eventName, boundCallback1);
-    pushApi.unbind(eventName, boundCallback3);
-
-    expect(unbindMethod.calls.count()).toEqual(2);
-    expect(unbindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
-    expect(unbindMethod.calls.argsFor(1)).toEqual([subscriber, eventName]);
-
-    var messageData = {event: eventName};
-    socket.onmessage({data: angular.toJson(messageData)});
-
-    expect(callback1).not.toHaveBeenCalled();
-    expect(callback2).toHaveBeenCalledWith(messageData);
-    expect(callback3).not.toHaveBeenCalled();
-  });
-
-  it('not unbind handler for non-existing event', function () {
-    var eventName = 'fake-event';
-
-    var callback = jasmine.createSpy('callback');
-    var boundCallback = pushApi.bind(eventName, callback);
-
-    pushApi.unbind('non-existing-event', boundCallback);
-    expect(unbindMethod).not.toHaveBeenCalled();
-
-    var messageData = {event: eventName};
-    socket.onmessage({data: angular.toJson(messageData)});
-
-    expect(callback).toHaveBeenCalled();
-  });
-
-  it('not unbind handler not for event', function () {
-    var eventName = 'fake-event';
-
-    var callback1 = jasmine.createSpy('callback1');
-    var callback2 = jasmine.createSpy('callback2');
-    var boundCallback1 = pushApi.bind(eventName, callback1);
-    var boundCallback2 = pushApi.bind('other-event', callback2);
-
-    pushApi.unbind(eventName, boundCallback2);
-
-    var messageData = {event: eventName};
-    socket.onmessage({data: angular.toJson(messageData)});
-
-    expect(callback1).toHaveBeenCalled();
-  });
-
-  it('unbind all handlers for event', function () {
-    var eventName = 'fake-event';
-
-    var callback1 = jasmine.createSpy('callback1');
-    var callback2 = jasmine.createSpy('callback2');
-    var callback3 = jasmine.createSpy('callback3');
-    pushApi.bind(eventName, callback1);
-    pushApi.bind(eventName, callback2);
-    pushApi.bind(eventName, callback3);
-
-    pushApi.unbind(eventName);
-
-    var messageData = {event: eventName};
-    socket.onmessage({data: angular.toJson(messageData)});
-
-    expect(callback1).not.toHaveBeenCalled();
-    expect(callback2).not.toHaveBeenCalled();
-    expect(callback3).not.toHaveBeenCalled();
-  });
-
-  it('call keepAlive after time interval', function () {
-    expect(keepAliveMethod).not.toHaveBeenCalled();
-    $interval.flush(keepAliveInterval * 1000);
-    expect(keepAliveMethod).toHaveBeenCalledWith(subscriber);
-  });
-
-  it('attempt a reconnect after time interval', inject(function ($q) {
-    connectMethod.calls.reset();
-
-    var deferred = $q.defer();
-    connectMethod.and.returnValue(deferred.promise);
-    var dummySubscriber = 'dummy_subscriber';
-    pushApi.openConnection(dummySubscriber);
-
-    expect(connectMethod.calls.count()).toBe(1);
-
-    deferred.reject();
-    rootScope.$digest();
-
-    expect(connectMethod.calls.count()).toBe(1);
-    $timeout.flush(reconnectInterval * 1000);
-    expect(connectMethod.calls.count()).toBe(2);
-    expect(connectMethod.calls.mostRecent().args).toEqual([dummySubscriber]);
-  }));
-
-  it('generate a subscriber if it is not specified', function () {
-    connectMethod.calls.reset();
-
-    spyOn(Math, 'random').and.returnValue(0.07);
-    connectMethod.and.returnValue({then: angular.noop});
-
-    var generatedSubscriber = pushApi.openConnection();
-
-    expect(generatedSubscriber).toEqual('eeeeeeeeeeeeeee');
-    expect(connectMethod).toHaveBeenCalledWith(generatedSubscriber);
-  });
-
-  it('generate a subscriber if it is empty string', function () {
-    connectMethod.calls.reset();
-
-    spyOn(Math, 'random').and.returnValue(0.07);
-    connectMethod.and.returnValue({then: angular.noop});
-
-    var generatedSubscriber = pushApi.openConnection('');
-
-    expect(generatedSubscriber).toEqual('eeeeeeeeeeeeeee');
-    expect(connectMethod).toHaveBeenCalledWith(generatedSubscriber);
   });
 
 });
