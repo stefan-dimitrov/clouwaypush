@@ -5,8 +5,6 @@ import com.clouway.push.client.channelapi.Channel;
 import com.clouway.push.client.channelapi.ChannelListener;
 import com.clouway.push.client.channelapi.PushChannelServiceAsync;
 import com.clouway.push.shared.PushEvent;
-import com.google.gwt.core.client.JavaScriptObject;
-import com.google.gwt.core.client.JsonUtils;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.rpc.SerializationException;
 import com.google.gwt.user.client.rpc.SerializationStreamFactory;
@@ -226,13 +224,6 @@ public class PushChannelApiImpl implements PushChannelApi {
 
       @Override
       public void onMessage(String json) {
-        // JSON Event was received, it need to be dispatched to Global JS Code
-        if (json.trim().startsWith("{") || json.trim().startsWith("[")) {
-          JavaScriptObject o = JsonUtils.safeEval(json);
-
-          notifyForNewMessage(o);
-          return;
-        }
         try {
           SerializationStreamReader reader = ((SerializationStreamFactory) pushChannelServiceAsync).createStreamReader(json);
           PushEvent pushEvent = (PushEvent) reader.readObject();
@@ -248,10 +239,4 @@ public class PushChannelApiImpl implements PushChannelApi {
       }
     });
   }
-
-  private static native void notifyForNewMessage(JavaScriptObject o) /*-{
-    if ($wnd.onChannelMessageReceived) {
-      $wnd.onChannelMessageReceived(o);
-    }
-  }-*/;
 }
