@@ -123,12 +123,6 @@ angular.module('clouway-push', [])
        */
       var onMessage = function (message) {
         var messageData = message.data;
-        var firstChar = messageData.trim().charAt(0);
-        if ('{' != firstChar && '[' != firstChar){
-          $window.onChannelMessageReceived(messageData);
-          return;
-        }
-
         var eventData = angular.fromJson(messageData);
         var handlers = boundEvents[eventData.event];
 
@@ -141,16 +135,15 @@ angular.module('clouway-push', [])
        * Open channel using specified channel token.
        *
        * @param {String} channelToken the token to use for opening channel.
-       * @param {String} subscriber subscriber to use when reopening channel.
        */
-      var openChannel = function (channelToken, subscriber) {
+      var openChannel = function (channelToken) {
         var channel = new goog.appengine.Channel(channelToken);
         var socket = channel.open();
 
         socket.onmessage = onMessage;
 
         socket.onerror = function (errorMessage) {
-          service.openConnection();
+          establishConnection();
         };
       };
 
@@ -168,6 +161,18 @@ angular.module('clouway-push', [])
       };
 
 
+      var establishConnection = function () {
+        connectionMethods.connect(channelSubscriber).then(function (token) {
+          openChannel(token);
+          keepAliveInterval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
+
+        }, function () {
+          // Retry connection after time interval.
+          $timeout(establishConnection, timeIntervals.channelReconnect * 1000, true);
+        });
+      };
+
+
       /**
        * Open connection for the specified subscriber.
        *
@@ -182,15 +187,8 @@ angular.module('clouway-push', [])
           subscriber = generateSubscriber(subscriberLength);
         }
 
-        connectionMethods.connect(subscriber).then(function (token) {
-          openChannel(token, subscriber);
-          channelSubscriber = subscriber;
-          keepAliveInterval = $interval(keepAlive, timeIntervals.keepAlive * 1000);
-
-        }, function () {
-          // Retry connection after time interval.
-          $timeout(service.openConnection, timeIntervals.channelReconnect * 1000, true, subscriber);
-        });
+        channelSubscriber = subscriber;
+        establishConnection(subscriber);
 
         return subscriber;
       };
@@ -231,6 +229,7 @@ angular.module('clouway-push', [])
         }
 
         if (angular.isUndefined(handler)) {
+          unsubscribeFromEvent(eventName);
           delete boundEvents[eventName];
           return;
         }
@@ -240,8 +239,11 @@ angular.module('clouway-push', [])
           return;
         }
 
-        unsubscribeFromEvent(eventName);
         boundEvents[eventName].splice(handlerIndex, 1);
+        if (!boundEvents[eventName].length) {
+          unsubscribeFromEvent(eventName);
+          delete boundEvents[eventName];
+        }
       };
 
       return service;

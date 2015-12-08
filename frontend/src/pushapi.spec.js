@@ -54,15 +54,6 @@ describe('PushApi', function () {
       expect(callback).toHaveBeenCalledWith({event: eventName});
     });
 
-    it('call window method when message is not json', function () {
-      $window.onChannelMessageReceived = jasmine.createSpy('$window.onPushMessage');
-
-      var messageData = '//OK;dummy_message';
-      socket.onmessage({data: messageData});
-
-      expect($window.onChannelMessageReceived).toHaveBeenCalledWith(messageData);
-    });
-
     it('call many bound event handlers', function () {
       var eventName = 'fake-event';
 
@@ -99,10 +90,6 @@ describe('PushApi', function () {
       pushApi.unbind(eventName, boundCallback1);
       pushApi.unbind(eventName, boundCallback3);
 
-      expect(unbindMethod.calls.count()).toEqual(2);
-      expect(unbindMethod.calls.argsFor(0)).toEqual([subscriber, eventName]);
-      expect(unbindMethod.calls.argsFor(1)).toEqual([subscriber, eventName]);
-
       var messageData = {event: eventName};
       socket.onmessage({data: angular.toJson(messageData)});
 
@@ -118,7 +105,6 @@ describe('PushApi', function () {
       var boundCallback = pushApi.bind(eventName, callback);
 
       pushApi.unbind('non-existing-event', boundCallback);
-      expect(unbindMethod).not.toHaveBeenCalled();
 
       var messageData = {event: eventName};
       socket.onmessage({data: angular.toJson(messageData)});
@@ -135,6 +121,7 @@ describe('PushApi', function () {
       var boundCallback2 = pushApi.bind('other-event', callback2);
 
       pushApi.unbind(eventName, boundCallback2);
+      expect(unbindMethod).not.toHaveBeenCalled();
 
       var messageData = {event: eventName};
       socket.onmessage({data: angular.toJson(messageData)});
@@ -153,6 +140,7 @@ describe('PushApi', function () {
       pushApi.bind(eventName, callback3);
 
       pushApi.unbind(eventName);
+      expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName);
 
       var messageData = {event: eventName};
       socket.onmessage({data: angular.toJson(messageData)});
@@ -160,6 +148,20 @@ describe('PushApi', function () {
       expect(callback1).not.toHaveBeenCalled();
       expect(callback2).not.toHaveBeenCalled();
       expect(callback3).not.toHaveBeenCalled();
+    });
+
+    it('call backend unbind only when last handler is unbound', function () {
+      var eventName = 'fake-event';
+
+      var callback1 = angular.noop;
+      var callback2 = angular.noop;
+      var boundCallback1 = pushApi.bind(eventName, callback1);
+      var boundCallback2 = pushApi.bind(eventName, callback2);
+
+      pushApi.unbind(eventName, boundCallback2);
+      expect(unbindMethod).not.toHaveBeenCalled();
+      pushApi.unbind(eventName, boundCallback1);
+      expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName);
     });
 
   });
@@ -218,7 +220,7 @@ describe('PushApi', function () {
       expect(keepAliveMethod).toHaveBeenCalledWith(subscriber);
     });
 
-    it('attempt a reconnect after time interval', inject(function ($q) {
+    it('attempt a reconnect after time interval', function () {
       var dummySubscriber = 'dummy_subscriber';
       pushApi.openConnection(dummySubscriber);
 
@@ -231,7 +233,47 @@ describe('PushApi', function () {
       $timeout.flush(reconnectInterval * 1000);
       expect(connectMethod.calls.count()).toBe(2);
       expect(connectMethod.calls.mostRecent().args).toEqual([dummySubscriber]);
-    }));
+    });
+
+    it('establish new connection after channel expire', function () {
+      pushApi.openConnection(subscriber);
+      connectDeferred.resolve(channelToken);
+      rootScope.$digest();
+
+      connectMethod.calls.reset();
+
+      expect(connectMethod).not.toHaveBeenCalled();
+      var socket = goog.appengine.Socket._get(channelToken);
+      socket.onerror();
+      expect(connectMethod).toHaveBeenCalledWith(subscriber);
+    });
+
+    it('call connect only once when multiple open connection calls before response', function () {
+      pushApi.openConnection(subscriber);
+      pushApi.openConnection(subscriber);
+      pushApi.openConnection(subscriber);
+
+      expect(connectMethod.calls.count()).toBe(1);
+      connectDeferred.resolve(channelToken);
+      rootScope.$digest();
+
+      connectMethod.calls.reset();
+      expect(connectMethod).not.toHaveBeenCalled();
+    });
+
+    it('call connect only once when multiple open connection calls after failure', function () {
+      pushApi.openConnection(subscriber);
+
+      expect(connectMethod.calls.count()).toBe(1);
+      connectDeferred.reject();
+      rootScope.$digest();
+
+      connectMethod.calls.reset();
+      pushApi.openConnection(subscriber);
+      pushApi.openConnection(subscriber);
+      expect(connectMethod).not.toHaveBeenCalled();
+
+    });
 
     it('generate a subscriber if it is not specified', function () {
       spyOn(Math, 'random').and.returnValue(0.07);
