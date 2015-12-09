@@ -35,7 +35,7 @@ angular.module('clouway-push', [])
     /**
      * Set a method to call when binding event handler.
      *
-     * @param {function(subscriber, eventName)} method method that will be called.
+     * @param {function(subscriber, eventName, correlationId)} method method that will be called.
      * @returns {*} the provider instance for chaining purposes.
      */
     this.bindMethod = function (method) {
@@ -46,7 +46,7 @@ angular.module('clouway-push', [])
     /**
      * Set a method to call when unbinding event handler.
      *
-     * @param {function(subscriber, eventName)} method method that will be called.
+     * @param {function(subscriber, eventName, correlationId)} method method that will be called.
      * @returns {*} the provider instance for chaining purposes.
      */
     this.unbindMethod = function (method) {
@@ -147,13 +147,13 @@ angular.module('clouway-push', [])
         };
       };
 
-      var subscribeForEvent = function (eventName) {
+      var subscribeForEvent = function (eventName, correlationId) {
         var subscriber = service.openConnection();
-        connectionMethods.bind(subscriber, eventName);
+        connectionMethods.bind(subscriber, eventName, correlationId);
       };
 
-      var unsubscribeFromEvent = function (eventName) {
-        connectionMethods.unbind(channelSubscriber, eventName);
+      var unsubscribeFromEvent = function (eventName, correlationId) {
+        connectionMethods.unbind(channelSubscriber, eventName, correlationId);
       };
 
       var keepAlive = function () {
@@ -201,8 +201,21 @@ angular.module('clouway-push', [])
        * @returns {Function} the bound handler
        */
       service.bind = function (eventName, handler) {
-        if (angular.isUndefined(boundEvents[eventName])) {
-          boundEvents[eventName] = [];
+        return service.bindId(eventName, '', handler);
+      };
+
+      /**
+       * Bind handler to push event.
+       *
+       * @param {String} eventName name of the push event to which to bind the handler
+       * @param {String} correlationId additional Id for the event
+       * @param {Function} handler handler to be called when the event occurs
+       * @returns {Function} the bound handler
+       */
+      service.bindId = function (eventName, correlationId, handler) {
+        var eventKey = eventName + correlationId;
+        if (angular.isUndefined(boundEvents[eventKey])) {
+          boundEvents[eventKey] = [];
         }
 
         var eventHandler = function (data) {
@@ -210,8 +223,8 @@ angular.module('clouway-push', [])
           $rootScope.$apply();
         };
 
-        subscribeForEvent(eventName);
-        boundEvents[eventName].push(eventHandler);
+        subscribeForEvent(eventName, correlationId);
+        boundEvents[eventKey].push(eventHandler);
 
         return eventHandler;
       };
@@ -224,25 +237,38 @@ angular.module('clouway-push', [])
        * @param {Function} [handler] the handler to be unbound from the event. If not defined, unbind all handlers for the event.
        */
       service.unbind = function (eventName, handler) {
-        if (!(eventName in boundEvents)) {
+        service.unbindId(eventName, '', handler);
+      };
+
+      /**
+       * Unbind handler/handlers from push event.
+       * If no handler is specified then unbind all bound handlers from the event.
+       *
+       * @param {String} eventName name of the event from which to unbind the handler/handlers
+       * @param {String} correlationId additional Id of the event
+       * @param {Function} [handler] the handler to be unbound from the event. If not defined, unbind all handlers for the event.
+       */
+      service.unbindId = function (eventName, correlationId, handler) {
+        var eventKey = eventName + correlationId;
+        if (!(eventKey in boundEvents)) {
           return;
         }
 
         if (angular.isUndefined(handler)) {
-          unsubscribeFromEvent(eventName);
-          delete boundEvents[eventName];
+          unsubscribeFromEvent(eventName, correlationId);
+          delete boundEvents[eventKey];
           return;
         }
 
-        var handlerIndex = boundEvents[eventName].indexOf(handler);
+        var handlerIndex = boundEvents[eventKey].indexOf(handler);
         if (handlerIndex < 0) {
           return;
         }
 
-        boundEvents[eventName].splice(handlerIndex, 1);
-        if (!boundEvents[eventName].length) {
-          unsubscribeFromEvent(eventName);
-          delete boundEvents[eventName];
+        boundEvents[eventKey].splice(handlerIndex, 1);
+        if (!boundEvents[eventKey].length) {
+          unsubscribeFromEvent(eventName, correlationId);
+          delete boundEvents[eventKey];
         }
       };
 
@@ -283,12 +309,12 @@ angular.module('clouway-push', [])
         var params = {subscriber: subscriber};
         return dataPromise($http.get(backendServiceUrl, {params: params}));
     })
-      .bindMethod(function (subscriber, eventName) {
-        var params = {subscriber: subscriber, eventName: eventName};
+      .bindMethod(function (subscriber, eventName, correlationId) {
+        var params = {subscriber: subscriber, eventName: eventName, correlationId: correlationId};
         return dataPromise($http.put(backendServiceUrl, '', {params: params}));
       })
-      .unbindMethod(function (subscriber, eventName) {
-        var params = {subscriber: subscriber, eventName: eventName};
+      .unbindMethod(function (subscriber, eventName, correlationId) {
+        var params = {subscriber: subscriber, eventName: eventName, correlationId: correlationId};
         return dataPromise($http['delete'](backendServiceUrl, {params: params}));
       })
       .keepAliveMethod(function (subscriber) {
