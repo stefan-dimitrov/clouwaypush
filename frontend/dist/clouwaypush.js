@@ -220,6 +220,9 @@ angular.module('clouway-push', [])
        * @returns {Function} the bound handler
        */
       service.bindId = function (eventName, correlationId, handler) {
+        if (!correlationId) {
+          correlationId = '';
+        }
         var eventKey = eventName + correlationId;
         if (angular.isUndefined(boundEvents[eventKey])) {
           boundEvents[eventKey] = [];
@@ -256,6 +259,9 @@ angular.module('clouway-push', [])
        * @param {Function} [handler] the handler to be unbound from the event. If not defined, unbind all handlers for the event.
        */
       service.unbindId = function (eventName, correlationId, handler) {
+        if (!correlationId) {
+          correlationId = '';
+        }
         var eventKey = eventName + correlationId;
         if (!(eventKey in boundEvents)) {
           return;

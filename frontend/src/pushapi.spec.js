@@ -99,6 +99,21 @@ describe('PushApi', function () {
       expect(callback2).not.toHaveBeenCalled();
     });
 
+    it('call bound event handler with undefined correlationId', function () {
+      spyOn(pushApi, 'openConnection').and.returnValue('connection subscriber');
+      var eventName = 'fake-event';
+      var correlationId;
+
+      var callback = jasmine.createSpy('callback');
+      pushApi.bindId(eventName, correlationId, callback);
+      expect(pushApi.openConnection).toHaveBeenCalled();
+      expect(bindMethod).toHaveBeenCalledWith('connection subscriber', eventName, '');
+
+      socket.onmessage({data: angular.toJson({event: eventName})});
+
+      expect(callback).toHaveBeenCalledWith({event: eventName});
+    });
+
     it('not call non-bound event handlers', function () {
       var eventName = 'fake-event';
 
@@ -172,27 +187,6 @@ describe('PushApi', function () {
       expect(callback3).not.toHaveBeenCalled();
     });
 
-    it('unbind all handlers for event', function () {
-      var eventName = 'fake-event';
-
-      var callback1 = jasmine.createSpy('callback1');
-      var callback2 = jasmine.createSpy('callback2');
-      var callback3 = jasmine.createSpy('callback3');
-      pushApi.bind(eventName, callback1);
-      pushApi.bind(eventName, callback2);
-      pushApi.bind(eventName, callback3);
-
-      pushApi.unbind(eventName);
-      expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName, '');
-
-      var messageData = {event: eventName};
-      socket.onmessage({data: angular.toJson(messageData)});
-
-      expect(callback1).not.toHaveBeenCalled();
-      expect(callback2).not.toHaveBeenCalled();
-      expect(callback3).not.toHaveBeenCalled();
-    });
-
     it('unbind all handlers for event with correlationId', function () {
       var eventName = 'fake-event';
       var correlationIdA = 'id-12345';
@@ -209,6 +203,28 @@ describe('PushApi', function () {
       expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName, correlationIdB);
 
       socket.onmessage({data: angular.toJson({event: eventName + correlationIdB})});
+      socket.onmessage({data: angular.toJson({event: eventName + correlationIdA})});
+
+      expect(callback1).not.toHaveBeenCalled();
+      expect(callback2).toHaveBeenCalled();
+      expect(callback3).not.toHaveBeenCalled();
+    });
+
+    it('unbind all handlers for event with undefined correlationId', function () {
+      var eventName = 'fake-event';
+      var correlationIdA = 'id-12345';
+
+      var callback1 = jasmine.createSpy('callback1');
+      var callback2 = jasmine.createSpy('callback2');
+      var callback3 = jasmine.createSpy('callback3');
+      pushApi.bind(eventName, callback1);
+      pushApi.bindId(eventName, correlationIdA, callback2);
+      pushApi.bind(eventName, callback3);
+
+      pushApi.unbindId(eventName, undefined);
+      expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName, '');
+
+      socket.onmessage({data: angular.toJson({event: eventName})});
       socket.onmessage({data: angular.toJson({event: eventName + correlationIdA})});
 
       expect(callback1).not.toHaveBeenCalled();
@@ -243,6 +259,16 @@ describe('PushApi', function () {
       expect(unbindMethod).not.toHaveBeenCalled();
       pushApi.unbindId(eventName, correlationId, boundCallback1);
       expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName, correlationId);
+    });
+
+    it('call backend unbind with undefined correlationId', function () {
+      var eventName = 'fake-event';
+
+      var callback = angular.noop;
+      var boundCallback = pushApi.bind(eventName, callback);
+
+      pushApi.unbindId(eventName, undefined, boundCallback);
+      expect(unbindMethod).toHaveBeenCalledWith(subscriber, eventName, '');
     });
 
   });
