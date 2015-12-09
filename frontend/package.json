@@ -1,11 +1,10 @@
 {
   "author": "clouWay ltd",
   "name": "clouwaypush",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "homepage": "https://github.com/clouway/clouwaypush",
   "licenses": {
-    "type": "MIT",
-    "url": "https://raw.github.com/ngbp/ngbp/master/LICENSE"
+    "type": "MIT"
   },
   "bugs": "https://github.com/clouway/clouwaypush/issues",
   "repository": {
@@ -14,6 +13,7 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "bower": "~1.7.0",
     "grunt": "~0.4.1",
     "grunt-bump": "0.0.6",
     "grunt-contrib-clean": "^0.4.1",
