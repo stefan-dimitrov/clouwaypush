@@ -15,6 +15,7 @@
     ".gitignore",
     ".bowerrc",
     "Gruntfile.js",
+    "build.config.js",
     "package.json",
     "module.prefix",
     "module.suffix"
