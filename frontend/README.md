@@ -14,6 +14,12 @@ Clouway Push AngularJS module
 
 2. Include the javascript in your html
 
+   First you need to include the _google appengine_ channel api javascript
+   ```html
+   <script type="text/javascript" src="/_ah/channel/jsapi"></script>
+   ```
+
+   then include the _clouwaypush_ javascript
    ```html
    <script type="text/javascript" src="bower_components/clouwaypush/frontend/dist/clouwaypush.min.js"></script>
    ```
