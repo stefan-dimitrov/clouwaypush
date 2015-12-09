@@ -1,6 +1,6 @@
 {
   "name": "clouwaypush",
-  "version": "0.1",
+  "version": "1.0",
   "license": "MIT",
   "devDependencies": {
     "angular-mocks": "~1.4.6",
@@ -8,16 +8,5 @@
   },
   "dependencies": {
     "angular": "~1.4.6"
-  },
-  "ignore": [
-    "src",
-    "karma",
-    ".gitignore",
-    ".bowerrc",
-    "Gruntfile.js",
-    "build.config.js",
-    "package.json",
-    "module.prefix",
-    "module.suffix"
-  ]
+  }
 }
