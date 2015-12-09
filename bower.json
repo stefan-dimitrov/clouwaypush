@@ -3,16 +3,10 @@
   "ignore": [
     "pom.xml",
     "src",
-    "frontend/src",
-    "frontend/karma",
     ".gitignore",
-    "frontend/.gitignore",
     ".bowerrc",
-    "frontend/.bowerrc",
-    "frontend/Gruntfile.js",
-    "frontend/build.config.js",
-    "frontend/package.json",
-    "frontend/module.prefix",
-    "frontend/module.suffix"
+    "frontend/*",
+    "!frontend/dist",
+    "!frontend/README.md",
   ]
 }
