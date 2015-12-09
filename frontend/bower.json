@@ -1,11 +1,22 @@
 {
   "name": "clouwaypush",
   "version": "0.1",
+  "license": "MIT",
   "devDependencies": {
     "angular-mocks": "~1.4.6",
     "appengine-channel-api-stub": "~1.0.1"
   },
   "dependencies": {
     "angular": "~1.4.6"
-  }
+  },
+  "ignore": [
+    "src",
+    "karma",
+    ".gitignore",
+    ".bowerrc",
+    "Gruntfile.js",
+    "package.json",
+    "module.prefix",
+    "module.suffix"
+  ]
 }

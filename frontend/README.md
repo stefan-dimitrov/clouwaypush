@@ -9,7 +9,7 @@ Clouway Push AngularJS module
 1. Install the library
 
    ```sh
-   $ bower install https://github.com/clouway/clouwaypush
+   $ bower install https://github.com/clouway/clouwaypush.git
    ```
 
 2. Include the javascript in your html
