@@ -103,6 +103,20 @@ public class PushChannelRestServiceTest {
   }
 
   @Test
+  public void subscribeNoEvents() throws Exception {
+    final String subscriber = "test-subscriber";
+
+    context.checking(new Expectations() {{
+      allowing(request).getParameter("subscriber");
+      will(returnValue(subscriber));
+      allowing(request).getParameterValues("eventName");
+      will(returnValue(null));
+    }});
+
+    restService.doPut(request, response);
+  }
+
+  @Test
   public void unSubscribeFromEvent() throws Exception {
     final String subscriber = "test-subscriber";
     final String eventName = "event";

@@ -53,6 +53,10 @@ public class PushChannelRestService extends HttpServlet {
     String subscriber = req.getParameter("subscriber");
     String[] eventNames = req.getParameterValues("eventName");
 
+    if (eventNames == null) {
+      return;
+    }
+
     List<PushEvent.Type> eventTypes = Lists.newArrayList();
     for (String eventName : eventNames) {
       eventTypes.add(new PushEvent.Type(eventName));

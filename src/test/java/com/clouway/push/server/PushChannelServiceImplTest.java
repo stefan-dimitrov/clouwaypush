@@ -54,24 +54,7 @@ public class PushChannelServiceImplTest {
   }
 
   @Test
-  public void subscribeForEvent() {
-
-    context.checking(new Expectations() {{
-      oneOf(repository).put(with(subscriptionCapture));
-    }});
-
-    pushChannelService.subscribe(subscriber, event.TYPE);
-
-    Subscription subscription = subscriptionCapture.getValue();
-
-    assertThat(subscription.getSubscriber(), is(subscriber));
-    assertThat(subscription.getEventName(), is("SimpleEvent"));
-    assertThat(subscription.getEventType(), isType(event.getAssociatedType()));
-    assertThat(subscription.getExpirationDate(), is(subscriptionsExpirationDate));
-  }
-
-  @Test
-  public void bulkSubscribeForManyEvents() {
+  public void subscribeForEvents() {
 
     final InstanceCapture<List<Subscription>> subscriptionsCapture = new InstanceCapture<List<Subscription>>();
     SimpleEvent simpleEvent = new SimpleEvent();

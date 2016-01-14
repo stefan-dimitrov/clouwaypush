@@ -12,7 +12,6 @@ public interface PushChannelService extends RemoteService {
 
   String connect(String subscriber);
 
-  void subscribe(String subscriber, PushEvent.Type type);
   void subscribe(String subscriber, List<PushEvent.Type> types);
 
   void unsubscribe(String subscriber, PushEvent.Type event);

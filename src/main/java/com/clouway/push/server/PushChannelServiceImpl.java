@@ -43,20 +43,6 @@ class PushChannelServiceImpl extends RemoteServiceServlet implements PushChannel
   }
 
   @Override
-  public void subscribe(String subscriber, PushEvent.Type type) {
-
-    log.info("Subscribe: " + subscriber + " for event: " + type.getKey());
-
-    Subscription subscription = aNewSubscription().eventName(type.getKey())
-            .eventType(type)
-            .subscriber(subscriber)
-            .expires(expirationDate.get())
-            .build();
-
-    subscriptionsRepository.put(subscription);
-  }
-
-  @Override
   public void subscribe(String subscriber, List<PushEvent.Type> types) {
     List<Subscription> subscriptions = Lists.newArrayList();
 
