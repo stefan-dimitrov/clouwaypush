@@ -12,6 +12,7 @@ import java.util.Set;
 public interface SubscriptionsRepository {
 
   void put(Subscription subscription);
+  void put(String subscriber, List<Subscription> subscriptions);
 
   void removeSubscriptions(PushEvent.Type type, Set<String> subscribers);
 

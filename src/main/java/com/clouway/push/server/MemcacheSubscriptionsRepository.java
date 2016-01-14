@@ -69,6 +69,11 @@ class MemcacheSubscriptionsRepository implements SubscriptionsRepository {
   }
 
   @Override
+  public void put(String subscriber, List<Subscription> subscriptions) {
+
+  }
+
+  @Override
   public void removeSubscriptions(final PushEvent.Type type, final Set<String> subscribers) {
 
     safeStoreOrUpdate(type.getKey(), new Function<Map<String, Subscription>, Map<String, Subscription>>() {

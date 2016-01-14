@@ -4,12 +4,14 @@ import com.clouway.push.client.channelapi.PushChannelService;
 import com.clouway.push.shared.PushEvent;
 import com.clouway.push.shared.util.DateTime;
 import com.google.appengine.api.channel.ChannelServiceFactory;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 import com.google.inject.Inject;
 import com.google.inject.Provider;
 import com.google.inject.Singleton;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 import static com.clouway.push.server.Subscription.aNewSubscription;
@@ -52,6 +54,23 @@ class PushChannelServiceImpl extends RemoteServiceServlet implements PushChannel
             .build();
 
     subscriptionsRepository.put(subscription);
+  }
+
+  @Override
+  public void subscribe(String subscriber, List<PushEvent.Type> types) {
+    List<Subscription> subscriptions = Lists.newArrayList();
+
+    for (PushEvent.Type type : types) {
+      log.info("Subscribe: " + subscriber + " for event: " + type.getKey());
+
+      subscriptions.add(aNewSubscription().eventName(type.getKey())
+              .eventType(type)
+              .subscriber(subscriber)
+              .expires(expirationDate.get())
+              .build());
+    }
+
+    subscriptionsRepository.put(subscriber, subscriptions);
   }
 
   @Override
