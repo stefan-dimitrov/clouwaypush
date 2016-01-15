@@ -1,5 +1,5 @@
 /**
- * clouwaypush - 2016-01-08
+ * clouwaypush - 2016-01-15
  *
  * Copyright (c) 2016 clouWay ltd
  */
@@ -62,6 +62,7 @@ angular.module('clouway-push', [])
       var timeIntervals = this.timeIntervals;
       var endpoints = this.endpoints;
       var boundEvents = {};
+      var pendingBulkBindings = [];
       var channelSubscriber;
       var keepAliveInterval;
 
@@ -117,12 +118,11 @@ angular.module('clouway-push', [])
         };
       };
 
-      var subscribeForEvent = function (eventName, correlationId) {
+      var subscribeForEvents = function (events) {
         var subscriber = service.openConnection();
         var params = {
           subscriber: subscriber,
-          eventName: eventName,
-          correlationId: correlationId
+          eventName: events
         };
 
         // Used for testing purposes only.
@@ -234,10 +234,48 @@ angular.module('clouway-push', [])
           $rootScope.$apply();
         };
 
-        subscribeForEvent(eventName, correlationId);
+        subscribeForEvents([eventKey]);
         boundEvents[eventKey].push(eventHandler);
 
         return eventHandler;
+      };
+
+      service.bulkBind = function (eventName, correlationId, handler) {
+        if (!correlationId) {
+          correlationId = '';
+        }
+        var eventKey = eventName + correlationId;
+        if (angular.isUndefined(boundEvents[eventKey])) {
+          boundEvents[eventKey] = [];
+        }
+
+        var eventHandler = function (data) {
+          handler(data);
+          $rootScope.$apply();
+        };
+
+        pendingBulkBindings.push({eventKey: eventKey, handler: handler});
+
+        return eventHandler;
+      };
+
+      service.flushBulk = function () {
+        if (!pendingBulkBindings.length) {
+          return;
+        }
+
+        var eventList = [];
+        angular.forEach(pendingBulkBindings, function (each) {
+          eventList.push(each.eventKey);
+          boundEvents[each.eventKey].push(each.handler);
+        });
+
+        subscribeForEvents(eventList);
+        pendingBulkBindings = [];
+      };
+
+      service.isBulkPending = function () {
+        return pendingBulkBindings.length > 0;
       };
 
       /**
