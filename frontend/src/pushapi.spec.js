@@ -10,7 +10,7 @@ describe('PushApi', function () {
   var subscriber = 'test-subscriber';
   var channelToken = 'fake-channel-token';
 
-  describe('after established connection ', function () {
+  describe('after established connection', function () {
      var httpBackend;
      var keepAliveInterval = 5; //in seconds
      var callback1, callback2, callback3;
@@ -62,8 +62,6 @@ describe('PushApi', function () {
     it('subscribes for single event multiple times', function () {
       var eventName = 'fake-event';
 
-      expectBindCall(eventName);
-      expectBindCall(eventName);
       expectBindCall(eventName);
 
       pushApi.bind(eventName, callback1);
@@ -120,8 +118,6 @@ describe('PushApi', function () {
     it('not call non-bound event handlers', function () {
       var eventName = 'fake-event';
 
-      expectBindCall(eventName);
-      expectBindCall(eventName);
       expectBindCall(eventName);
 
       var boundCallback1 = pushApi.bind(eventName, callback1);
@@ -183,8 +179,6 @@ describe('PushApi', function () {
       var eventName = 'fake-event';
 
       expectBindCall(eventName);
-      expectBindCall(eventName);
-      expectBindCall(eventName);
 
       expectUnbindCall(eventName);
 
@@ -213,7 +207,6 @@ describe('PushApi', function () {
 
       expectBindCall(eventName, correlationIdB);
       expectBindCall(eventName, correlationIdA);
-      expectBindCall(eventName, correlationIdB);
 
       expectUnbindCall(eventName, correlationIdB);
 
@@ -240,7 +233,6 @@ describe('PushApi', function () {
 
       expectBindCall(eventName);
       expectBindCall(eventName, correlationIdA);
-      expectBindCall(eventName);
       expectUnbindCall(eventName);
 
       pushApi.bind(eventName, callback1);
@@ -264,7 +256,6 @@ describe('PushApi', function () {
       var eventName = 'fake-event';
 
       expectBindCall(eventName);
-      expectBindCall(eventName);
       expectUnbindCall(eventName);
 
       var callback1 = angular.noop;
@@ -283,7 +274,6 @@ describe('PushApi', function () {
       var eventName = 'fake-event';
       var correlationId = 'id-12345';
 
-      expectBindCall(eventName, correlationId);
       expectBindCall(eventName, correlationId);
       expectUnbindCall(eventName, correlationId);
 
@@ -331,14 +321,14 @@ describe('PushApi', function () {
 
     it('bulk binds several events', function () {
 
-      pushApi.bulkBind('eventA', 'id-12345', callback1);
-      pushApi.bulkBind('eventB', '', callback2);
-      pushApi.bulkBind('eventC', '', callback3);
+      pushApi.bulkBindId('eventA', 'id-12345', callback1);
+      pushApi.bulkBind('eventB', callback2);
+      pushApi.bulkBind('eventC', callback3);
 
       httpBackend.verifyNoOutstandingRequest();
 
       expectBulkBindCall(['eventAid-12345', 'eventB', 'eventC']);
-      pushApi.flushBulk();
+      pushApi.flushBulkBind();
       httpBackend.flush();
     });
 
@@ -346,13 +336,13 @@ describe('PushApi', function () {
       var eventName = 'fake-event';
       var messageData = {event: eventName};
 
-      pushApi.bulkBind(eventName, '', callback1);
+      pushApi.bulkBind(eventName, callback1);
 
       socket.onmessage({data: angular.toJson(messageData)});
       expect(callback1).not.toHaveBeenCalled();
 
       expectBulkBindCall([eventName]);
-      pushApi.flushBulk();
+      pushApi.flushBulkBind();
       httpBackend.flush();
 
       socket.onmessage({data: angular.toJson(messageData)});
@@ -361,17 +351,22 @@ describe('PushApi', function () {
 
     it('flushes bulk with no pending binds', function () {
 
-      pushApi.flushBulk();
+      pushApi.flushBulkBind();
       httpBackend.verifyNoOutstandingRequest();
     });
 
     it('checks for pending bulk', function () {
 
-      expect(pushApi.isBulkPending()).toBe(false);
+      expect(pushApi.isBulkBindPending()).toBe(false);
 
-      pushApi.bulkBind("fake-event", '', angular.noop);
+      pushApi.bulkBind("fake-event", angular.noop);
+      expect(pushApi.isBulkBindPending()).toBe(true);
 
-      expect(pushApi.isBulkPending()).toBe(true);
+      expectBulkBindCall(['fake-event']);
+      pushApi.flushBulkBind();
+      expect(pushApi.isBulkBindPending()).toBe(false);
+
+      httpBackend.flush();
     });
 
 
@@ -380,11 +375,7 @@ describe('PushApi', function () {
         correlationId = "";
       }
 
-      if (!response) {
-        httpBackend.expectPUT('/pushService?eventName=' + eventName + correlationId + '&subscriber=subscriber1').respond(200, "");
-      } else {
-        httpBackend.expectPUT('/pushService?eventName=' + eventName + correlationId + '&subscriber=subscriber1').respond(response.status, response.body);
-      }
+      expectBulkBindCall([eventName + correlationId], response);
     }
 
     function expectBulkBindCall(events, response) {

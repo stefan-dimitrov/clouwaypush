@@ -129,9 +129,12 @@ angular.module('clouway-push', [])
         if (!endpoints.serviceUrl || endpoints.serviceUrl === '') {
           return;
         }
-        $http.put(endpoints.serviceUrl, '', {params: params}).then(function (data) {
 
-        });
+        if (events.length) {
+          $http.put(endpoints.serviceUrl, '', {params: params}).then(function (data) {
+
+          });
+        }
       };
 
       var unsubscribeFromEvent = function (eventName, correlationId) {
@@ -221,60 +224,80 @@ angular.module('clouway-push', [])
        * @returns {Function} the bound handler
        */
       service.bindId = function (eventName, correlationId, handler) {
+        var eventHandler = service.bulkBindId(eventName, correlationId, handler);
+        service.flushBulkBind();
+
+        return eventHandler;
+      };
+
+      /**
+       * Add binding of push event handler to pending bulk.
+       * After flushing all bindings from bulk will be applied at once.
+       *
+       * @param {String} eventName name of the push event to which to bind the handler
+       * @param {Function} handler handler to be called when the event occurs
+       * @returns {Function} the bound handler
+       */
+      service.bulkBind = function (eventName, handler) {
+        return service.bulkBindId(eventName, '', handler);
+      };
+
+      /**
+       * Add binding of push event handler to pending bulk.
+       * After flushing all bindings from bulk will be applied at once.
+       *
+       * @param {String} eventName name of the push event to which to bind the handler
+       * @param {String} correlationId additional Id for the event
+       * @param {Function} handler handler to be called when the event occurs
+       * @returns {Function} the bound handler
+       */
+      service.bulkBindId = function (eventName, correlationId, handler) {
         if (!correlationId) {
           correlationId = '';
         }
         var eventKey = eventName + correlationId;
-        if (angular.isUndefined(boundEvents[eventKey])) {
-          boundEvents[eventKey] = [];
-        }
 
         var eventHandler = function (data) {
           handler(data);
           $rootScope.$apply();
         };
 
-        subscribeForEvents([eventKey]);
-        boundEvents[eventKey].push(eventHandler);
+        pendingBulkBindings.push({eventKey: eventKey, handler: eventHandler});
 
         return eventHandler;
       };
 
-      service.bulkBind = function (eventName, correlationId, handler) {
-        if (!correlationId) {
-          correlationId = '';
-        }
-        var eventKey = eventName + correlationId;
-        if (angular.isUndefined(boundEvents[eventKey])) {
-          boundEvents[eventKey] = [];
-        }
-
-        var eventHandler = function (data) {
-          handler(data);
-          $rootScope.$apply();
-        };
-
-        pendingBulkBindings.push({eventKey: eventKey, handler: handler});
-
-        return eventHandler;
-      };
-
-      service.flushBulk = function () {
+      /**
+       * Flush all pending bulk bindings.
+       */
+      service.flushBulkBind = function () {
         if (!pendingBulkBindings.length) {
           return;
         }
 
         var eventList = [];
         angular.forEach(pendingBulkBindings, function (each) {
-          eventList.push(each.eventKey);
-          boundEvents[each.eventKey].push(each.handler);
+          var eventKey = each.eventKey;
+
+          if (!(eventKey in boundEvents)) {
+            boundEvents[eventKey] = [];
+
+            /* Only add events that haven't been subscribed for */
+            eventList.push(eventKey);
+          }
+          boundEvents[eventKey].push(each.handler);
         });
 
-        subscribeForEvents(eventList);
         pendingBulkBindings = [];
+        subscribeForEvents(eventList);
       };
 
-      service.isBulkPending = function () {
+      /**
+       * Return whether there are any pending bulk bindings.
+       *
+       * @returns {boolean}
+       */
+      service.isBulkBindPending = function () {
         return pendingBulkBindings.length > 0;
       };
 
