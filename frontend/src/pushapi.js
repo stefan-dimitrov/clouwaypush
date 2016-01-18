@@ -220,9 +220,9 @@ angular.module('clouway-push', [])
        * @returns {Function} the bound handler.
        */
       service.bindId = function (eventName, correlationId, handler) {
-        //FIXME: do not use the bulk logic - it may lead to unexpected behaviour.
-        var eventHandler = service.bulkBindId(eventName, correlationId, handler);
-        service.flushBulkBind();
+        var singlePending = [];
+        var eventHandler = addPendingBinding(singlePending, eventName, correlationId, handler);
+        flushPendingBindings(singlePending);
 
         return eventHandler;
       };

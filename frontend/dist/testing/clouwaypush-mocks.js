@@ -22,7 +22,7 @@
       * that decorates the "flush" method of pushApi to call $httpBackend.
       */
      $provide.decorator('pushApi', ["$delegate", function ($delegate) {
-       $delegate.openConnection = angular.noop; // as before, no need to execute this logic in user's tests. If needed it can be spied on.
+       $delegate.openConnection = angular.noop; // no need to execute this logic in user's tests. If needed it can be spied on.
        return $delegate;
      }]);
 

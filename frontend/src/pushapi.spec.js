@@ -380,6 +380,17 @@ describe('PushApi', function () {
         httpBackend.flush();
       });
 
+      it('does not mix with regular bindings', function () {
+        pushApi.bulkBind('bulk-event1', callback1);
+        pushApi.bulkBind('bulk-event2', callback2);
+
+        expectBindCall('event3');
+        pushApi.bind('event3', callback3);
+
+        httpBackend.flush();
+        expect(pushApi.isBulkBindPending()).toBe(true);
+      });
+
     });
 
     describe('initial binding', function () {
@@ -429,6 +440,20 @@ describe('PushApi', function () {
         pushApi.initialBind('initial-event', callback2);
 
         expectBulkBindCall(['initial-event', 'bulk-event']);
+        $timeout.flush(1);
+        httpBackend.flush();
+      });
+
+      it('does not mix with regular bindings', function () {
+        pushApi.initialBind('initial-event1', callback1);
+        pushApi.initialBind('initial-event2', callback2);
+
+        expectBindCall('event3');
+        pushApi.bind('event3', callback3);
+
+        httpBackend.flush();
+
+        expectBulkBindCall(['initial-event1', 'initial-event2']);
         $timeout.flush(1);
         httpBackend.flush();
       });
