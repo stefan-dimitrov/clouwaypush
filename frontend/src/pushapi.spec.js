@@ -12,13 +12,12 @@ describe('PushApi', function () {
 
   describe('after established connection', function () {
      var httpBackend;
-     var keepAliveInterval = 5; //in seconds
      var callback1, callback2, callback3;
 
      beforeEach(function () {
        module(function (pushApiProvider) {
          pushApiProvider
-                 .keepAliveTimeInterval(keepAliveInterval)
+                 .keepAliveTimeInterval(5)
                  .backendServiceUrl("/pushService");
        });
 
@@ -319,54 +318,121 @@ describe('PushApi', function () {
       expect(callback1).toHaveBeenCalledWith({data: 'dummy', event: manualEvent});
     });
 
-    it('bulk binds several events', function () {
 
-      pushApi.bulkBindId('eventA', 'id-12345', callback1);
-      pushApi.bulkBind('eventB', callback2);
-      pushApi.bulkBind('eventC', callback3);
+    describe('bulk bindings', function () {
 
-      httpBackend.verifyNoOutstandingRequest();
+      it('bulk binds several events', function () {
 
-      expectBulkBindCall(['eventAid-12345', 'eventB', 'eventC']);
-      pushApi.flushBulkBind();
-      httpBackend.flush();
+        pushApi.bulkBindId('eventA', 'id-12345', callback1);
+        pushApi.bulkBind('eventB', callback2);
+        pushApi.bulkBind('eventC', callback3);
+
+        httpBackend.verifyNoOutstandingRequest();
+
+        expectBulkBindCall(['eventAid-12345', 'eventB', 'eventC']);
+        pushApi.flushBulkBind();
+        httpBackend.flush();
+      });
+
+      it('binds callback only after flushing bulk', function () {
+        var eventName = 'fake-event';
+        var messageData = {event: eventName};
+
+        pushApi.bulkBind(eventName, callback1);
+
+        socket.onmessage({data: angular.toJson(messageData)});
+        expect(callback1).not.toHaveBeenCalled();
+
+        expectBulkBindCall([eventName]);
+        pushApi.flushBulkBind();
+        httpBackend.flush();
+
+        socket.onmessage({data: angular.toJson(messageData)});
+        expect(callback1).toHaveBeenCalledWith(messageData);
+      });
+
+      it('flushes bulk with no pending binds', function () {
+
+        pushApi.flushBulkBind();
+        httpBackend.verifyNoOutstandingRequest();
+      });
+
+      it('does not flush bulk when initial bindings', function () {
+
+        pushApi.bulkBind('bulk-event', callback1);
+        pushApi.initialBind('initial-event', callback2);
+
+        pushApi.flushBulkBind();
+        httpBackend.verifyNoOutstandingRequest();
+      });
+
+      it('checks for pending bulk', function () {
+
+        expect(pushApi.isBulkBindPending()).toBe(false);
+
+        pushApi.bulkBind("fake-event", angular.noop);
+        expect(pushApi.isBulkBindPending()).toBe(true);
+
+        expectBulkBindCall(['fake-event']);
+        pushApi.flushBulkBind();
+        expect(pushApi.isBulkBindPending()).toBe(false);
+
+        httpBackend.flush();
+      });
+
     });
 
-    it('binds callback only after flushing bulk', function () {
-      var eventName = 'fake-event';
-      var messageData = {event: eventName};
+    describe('initial binding', function () {
 
-      pushApi.bulkBind(eventName, callback1);
+      var $timeout;
+      beforeEach(inject(function (_$timeout_) {
+        $timeout = _$timeout_;
+      }));
 
-      socket.onmessage({data: angular.toJson(messageData)});
-      expect(callback1).not.toHaveBeenCalled();
+      it('initial binds several events', function () {
+        pushApi.initialBindId('eventA', 'id-12345', callback1);
+        pushApi.initialBind('eventB', callback2);
+        pushApi.initialBind('eventC', callback3);
 
-      expectBulkBindCall([eventName]);
-      pushApi.flushBulkBind();
-      httpBackend.flush();
+        httpBackend.verifyNoOutstandingRequest();
 
-      socket.onmessage({data: angular.toJson(messageData)});
-      expect(callback1).toHaveBeenCalledWith(messageData);
-    });
+        expectBulkBindCall(['eventAid-12345', 'eventB', 'eventC']);
+        $timeout.flush(1);
+        httpBackend.flush();
+      });
 
-    it('flushes bulk with no pending binds', function () {
+      it('binds callback only after flushing initials', function () {
+        var eventName = 'fake-event';
+        var messageData = {event: eventName};
 
-      pushApi.flushBulkBind();
-      httpBackend.verifyNoOutstandingRequest();
-    });
+        pushApi.initialBind(eventName, callback1);
 
-    it('checks for pending bulk', function () {
+        socket.onmessage({data: angular.toJson(messageData)});
+        expect(callback1).not.toHaveBeenCalled();
 
-      expect(pushApi.isBulkBindPending()).toBe(false);
+        expectBulkBindCall([eventName]);
+        $timeout.flush(1);
+        httpBackend.flush();
 
-      pushApi.bulkBind("fake-event", angular.noop);
-      expect(pushApi.isBulkBindPending()).toBe(true);
+        socket.onmessage({data: angular.toJson(messageData)});
+        expect(callback1).toHaveBeenCalledWith(messageData);
+      });
 
-      expectBulkBindCall(['fake-event']);
-      pushApi.flushBulkBind();
-      expect(pushApi.isBulkBindPending()).toBe(false);
+      it('flushes initials with no pending binds', function () {
+        $timeout.flush(1);
+        httpBackend.verifyNoOutstandingRequest();
+      });
 
-      httpBackend.flush();
+      it('flushes initials and bulk binds', function () {
+
+        pushApi.bulkBind('bulk-event', callback1);
+        pushApi.initialBind('initial-event', callback2);
+
+        expectBulkBindCall(['initial-event', 'bulk-event']);
+        $timeout.flush(1);
+        httpBackend.flush();
+      });
+
     });
 
 
