@@ -7,6 +7,6 @@
     "appengine-channel-api-stub": "~1.0.1"
   },
   "dependencies": {
-    "angular": "~1.4.6"
+    "angular": ">=1.4 <2.0"
   }
 }

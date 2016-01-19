@@ -3,14 +3,12 @@
   "version": "1.0",
   "license": "MIT",
   "dependencies": {
-    "angular": "~1.4.6"
+    "angular": ">=1.4 <2.0"
   },
   "main": "frontend/dist/clouwaypush.js",
   "ignore": [
-    "pom.xml",
-    "src",
-    ".gitignore",
-    "frontend/*",
+    "*",
+    "!doc",
     "!frontend/dist",
     "!frontend/README.md"
   ]
