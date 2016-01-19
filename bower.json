@@ -8,7 +8,7 @@
   "main": "frontend/dist/clouwaypush.js",
   "ignore": [
     "*",
-    "!doc",
+    "!doc/*",
     "!frontend/dist",
     "!frontend/README.md"
   ]
