@@ -442,6 +442,16 @@ describe('PushApi', function () {
         expectBulkBindCall(['initial-event', 'bulk-event']);
         $timeout.flush(1);
         httpBackend.flush();
+
+        // Verify bulk bindings list cleared
+        expect(pushApi.isBulkBindPending()).toBe(false);
+
+        // Verify initial bindings list also cleared
+        // (because bulk binds don't flush when there are pending initial binds)
+        pushApi.bulkBind('verify-event', callback3);
+        expectBulkBindCall(['verify-event']);
+        pushApi.flushBulkBind();
+        httpBackend.flush();
       });
 
       it('does not mix with regular bindings', function () {

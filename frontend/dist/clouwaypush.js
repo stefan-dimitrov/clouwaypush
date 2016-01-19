@@ -1,5 +1,5 @@
 /**
- * clouwaypush - 2016-01-18
+ * clouwaypush - 2016-01-19
  *
  * Copyright (c) 2016 clouWay ltd
  */
@@ -297,6 +297,8 @@ angular.module('clouway-push', [])
         if (angular.isUndefined(initialFlushTimeout)) {
           initialFlushTimeout = $timeout(function () {
             flushPendingBindings(pendingInitialBindings.concat(pendingBulkBindings));
+            pendingInitialBindings.splice(0, pendingInitialBindings.length);
+            pendingBulkBindings.splice(0, pendingBulkBindings.length);
           });
         }
 
