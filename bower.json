@@ -9,7 +9,7 @@
   "ignore": [
     "*",
     "!doc/*",
-    "!frontend/dist/*",
+    "!frontend/dist/**",
     "!frontend/README.md"
   ]
 }
